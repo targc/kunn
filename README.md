@@ -1,6 +1,6 @@
-# local-tunn
+# kunn
 
-Tunnel into private Kubernetes services from your local machine. Supports multiple k8s clusters through agents.
+Kubernetes tunnel for accessing private services across multiple clusters. Agents run inside each cluster with zero exposed ports — traffic flows through a single public WebSocket server.
 
 ```
 localhost:6060 → [client] → WebSocket → [server] → WebSocket → [agent in k8s] → postgres.svc:5432
@@ -22,7 +22,7 @@ localhost:6060 → [client] → WebSocket → [server] → WebSocket → [agent 
 
 - **Server** — public-facing, manages auth and routing
 - **Agent** — runs in each k8s cluster, connects outbound (no exposed ports)
-- **Client** — interactive container on local machine
+- **Client** — interactive CLI on local machine, supports browser-based login
 
 ## Server Setup
 
@@ -63,7 +63,7 @@ clients:
 
 ### Config (Webhook)
 
-Set `TUNN_WEBHOOK_URL` to delegate to an external API:
+Set `KUNN_WEBHOOK_URL` to delegate to an external API:
 
 | Endpoint | Response |
 |----------|----------|
@@ -78,10 +78,10 @@ All endpoints use `Authorization: Bearer <token>`. Return `401` for invalid toke
 
 ```bash
 # YAML mode
-TUNN_CONFIG=config.yaml go run ./cmd/server
+KUNN_CONFIG=config.yaml go run ./cmd/server
 
 # Webhook mode
-TUNN_WEBHOOK_URL=https://api.example.com go run ./cmd/server
+KUNN_WEBHOOK_URL=https://api.example.com go run ./cmd/server
 ```
 
 ## Agent Setup (per k8s cluster)
@@ -89,35 +89,42 @@ TUNN_WEBHOOK_URL=https://api.example.com go run ./cmd/server
 Agent runs inside the cluster and connects outbound to the server.
 
 ```bash
-docker build -f Dockerfile.agent -t tunn-agent .
+docker build -f Dockerfile.agent -t kunn-agent .
 ```
 
 ```yaml
 # k8s deployment
 env:
-  - name: TUNN_SERVER
-    value: "ws://tunn-server.example.com/ws/agent"
-  - name: TUNN_AGENT_TOKEN
+  - name: KUNN_SERVER
+    value: "ws://kunn-server.example.com/ws/agent"
+  - name: KUNN_AGENT_TOKEN
     value: "agent_tok_cluster_a"
 ```
 
 Or run locally for testing:
 
 ```bash
-TUNN_SERVER=ws://localhost:8080/ws/agent \
-TUNN_AGENT_TOKEN=agent_tok_cluster_a \
+KUNN_SERVER=ws://localhost:8080/ws/agent \
+KUNN_AGENT_TOKEN=agent_tok_cluster_a \
 go run ./cmd/agent
 ```
 
 ## Client Usage
 
 ```bash
-docker build -f Dockerfile.client -t tunn-client .
+docker build -f Dockerfile.client -t kunn-client .
 
+# With token
 docker run -it --rm --network host \
-  -e TUNN_SERVER=ws://tunn-server.example.com/ws/client \
-  -e TUNN_TOKEN=tok_alice_abc123 \
-  tunn-client
+  -e KUNN_SERVER=ws://kunn-server.example.com/ws/client \
+  -e KUNN_TOKEN=tok_alice_abc123 \
+  kunn-client
+
+# With browser login
+docker run -it --rm --network host \
+  -e KUNN_SERVER=ws://kunn-server.example.com/ws/client \
+  -e KUNN_AUTH_URL=https://auth.example.com/login \
+  kunn-client
 ```
 
 ```
@@ -146,20 +153,21 @@ Port auto-assigns starting from 6060.
 
 | Var | Required | Example |
 |-----|----------|---------|
-| `TUNN_SERVER` | yes | `ws://server:8080/ws/client` |
-| `TUNN_TOKEN` | yes | `tok_alice_abc123` |
+| `KUNN_SERVER` | yes | `ws://server:8080/ws/client` |
+| `KUNN_TOKEN` | no | `tok_alice_abc123` (or saved in `~/.tunn/token`) |
+| `KUNN_AUTH_URL` | no | `https://auth.example.com/login` (for browser login) |
 
 ### Agent
 
 | Var | Required | Example |
 |-----|----------|---------|
-| `TUNN_SERVER` | yes | `ws://server:8080/ws/agent` |
-| `TUNN_AGENT_TOKEN` | yes | `agent_tok_cluster_a` |
+| `KUNN_SERVER` | yes | `ws://server:8080/ws/agent` |
+| `KUNN_AGENT_TOKEN` | yes | `agent_tok_cluster_a` |
 
 ### Server
 
 | Var | Required | Description |
 |-----|----------|-------------|
-| `TUNN_CONFIG` | no | Path to YAML config (default: `/etc/tunn/config.yaml`) |
-| `TUNN_WEBHOOK_URL` | no | Webhook API base URL (overrides YAML mode) |
-| `TUNN_ADDR` | no | Listen address (default: `:8080` or from YAML) |
+| `KUNN_CONFIG` | no | Path to YAML config (default: `/etc/kunn/config.yaml`) |
+| `KUNN_WEBHOOK_URL` | no | Webhook API base URL (overrides YAML mode) |
+| `KUNN_ADDR` | no | Listen address (default: `:8080` or from YAML) |

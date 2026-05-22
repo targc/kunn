@@ -1,4 +1,4 @@
-module github.com/targc/local-tunn
+module github.com/targc/kunn
 
 go 1.26.0
 

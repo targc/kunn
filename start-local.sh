@@ -2,11 +2,11 @@
 set -e
 
 REGISTRY="k3d-registry.localhost:5000"
-CLUSTER_1="tunn-cluster-1"
-CLUSTER_2="tunn-cluster-2"
-SERVER_CONTAINER="tunn-server-local"
-WEBHOOK_CONTAINER="tunn-webhook-local"
-DOCKER_NETWORK="tunn-net"
+CLUSTER_1="kunn-cluster-1"
+CLUSTER_2="kunn-cluster-2"
+SERVER_CONTAINER="kunn-server-local"
+WEBHOOK_CONTAINER="kunn-webhook-local"
+DOCKER_NETWORK="kunn-net"
 WEBHOOK_PORT=9090
 SERVER_PORT=8080
 
@@ -36,14 +36,14 @@ k3d registry create registry.localhost --port 5000 2>/dev/null || true
 
 echo "=== Build Images ==="
 
-docker build -f Dockerfile.server -t $REGISTRY/tunn-server:latest .
-docker push $REGISTRY/tunn-server:latest
+docker build -f Dockerfile.server -t $REGISTRY/kunn-server:latest .
+docker push $REGISTRY/kunn-server:latest
 
-docker build -f Dockerfile.agent -t $REGISTRY/tunn-agent:latest .
-docker push $REGISTRY/tunn-agent:latest
+docker build -f Dockerfile.agent -t $REGISTRY/kunn-agent:latest .
+docker push $REGISTRY/kunn-agent:latest
 
-docker build -f Dockerfile.client -t $REGISTRY/tunn-client:latest .
-docker push $REGISTRY/tunn-client:latest
+docker build -f Dockerfile.client -t $REGISTRY/kunn-client:latest .
+docker push $REGISTRY/kunn-client:latest
 
 # -------------------- mock webhook config server --------------------
 
@@ -135,8 +135,8 @@ echo "Webhook server ready"
 echo "=== Tunnel Server ==="
 
 docker run -d --name $SERVER_CONTAINER --network $DOCKER_NETWORK -p $SERVER_PORT:8080 \
-  -e TUNN_WEBHOOK_URL=http://$WEBHOOK_CONTAINER:8000 \
-  $REGISTRY/tunn-server:latest
+  -e KUNN_WEBHOOK_URL=http://$WEBHOOK_CONTAINER:8000 \
+  $REGISTRY/kunn-server:latest
 
 echo "Waiting for tunnel server..."
 until curl -sf http://localhost:$SERVER_PORT/projects -H "Authorization: Bearer tok_dev" > /dev/null 2>&1; do sleep 1; done
@@ -211,30 +211,30 @@ kubectl apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tunn-agent
+  name: kunn-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: tunn-agent
+      app: kunn-agent
   template:
     metadata:
       labels:
-        app: tunn-agent
+        app: kunn-agent
     spec:
       containers:
-        - name: tunn-agent
-          image: $REGISTRY/tunn-agent:latest
+        - name: kunn-agent
+          image: $REGISTRY/kunn-agent:latest
           env:
-            - name: TUNN_SERVER
+            - name: KUNN_SERVER
               value: "ws://$SERVER_CONTAINER:8080/ws/agent"
-            - name: TUNN_AGENT_TOKEN
+            - name: KUNN_AGENT_TOKEN
               value: "agent_tok_1"
 EOF
 
 kubectl wait --for=condition=ready pod -l app=postgres --timeout=120s
 kubectl wait --for=condition=ready pod -l app=redis --timeout=120s
-kubectl wait --for=condition=ready pod -l app=tunn-agent --timeout=120s
+kubectl wait --for=condition=ready pod -l app=kunn-agent --timeout=120s
 echo "Cluster 1 ready"
 
 # -------------------- k8s cluster 2 --------------------
@@ -283,29 +283,29 @@ kubectl apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tunn-agent
+  name: kunn-agent
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: tunn-agent
+      app: kunn-agent
   template:
     metadata:
       labels:
-        app: tunn-agent
+        app: kunn-agent
     spec:
       containers:
-        - name: tunn-agent
-          image: $REGISTRY/tunn-agent:latest
+        - name: kunn-agent
+          image: $REGISTRY/kunn-agent:latest
           env:
-            - name: TUNN_SERVER
+            - name: KUNN_SERVER
               value: "ws://$SERVER_CONTAINER:8080/ws/agent"
-            - name: TUNN_AGENT_TOKEN
+            - name: KUNN_AGENT_TOKEN
               value: "agent_tok_2"
 EOF
 
 kubectl wait --for=condition=ready pod -l app=postgres --timeout=120s
-kubectl wait --for=condition=ready pod -l app=tunn-agent --timeout=120s
+kubectl wait --for=condition=ready pod -l app=kunn-agent --timeout=120s
 echo "Cluster 2 ready"
 
 # -------------------- done --------------------
@@ -323,24 +323,24 @@ echo "  Cluster2: k3d-$CLUSTER_2 (agent_tok_2)"
 echo ""
 echo "Run client with token (docker):"
 echo "  docker run -it --rm --network host \\"
-echo "    -e TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
-echo "    -e TUNN_TOKEN=tok_dev \\"
-echo "    $REGISTRY/tunn-client:latest"
+echo "    -e KUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
+echo "    -e KUNN_TOKEN=tok_dev \\"
+echo "    $REGISTRY/kunn-client:latest"
 echo ""
 echo "Run client with token (go):"
-echo "  TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
-echo "    TUNN_TOKEN=tok_dev \\"
+echo "  KUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
+echo "    KUNN_TOKEN=tok_dev \\"
 echo "    go run ./cmd/client"
 echo ""
 echo "Run client with login (docker):"
 echo "  docker run -it --rm --network host \\"
-echo "    -e TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
-echo "    -e TUNN_AUTH_URL=http://localhost:$WEBHOOK_PORT/login \\"
-echo "    $REGISTRY/tunn-client:latest"
+echo "    -e KUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
+echo "    -e KUNN_AUTH_URL=http://localhost:$WEBHOOK_PORT/login \\"
+echo "    $REGISTRY/kunn-client:latest"
 echo ""
 echo "Run client with login (go):"
-echo "  TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
-echo "    TUNN_AUTH_URL=http://localhost:$WEBHOOK_PORT/login \\"
+echo "  KUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
+echo "    KUNN_AUTH_URL=http://localhost:$WEBHOOK_PORT/login \\"
 echo "    go run ./cmd/client"
 echo ""
 echo "Services available:"

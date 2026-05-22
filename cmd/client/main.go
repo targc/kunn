@@ -10,13 +10,13 @@ import (
 	"syscall"
 
 	"github.com/charmbracelet/huh"
-	"github.com/targc/local-tunn/internal/client"
+	"github.com/targc/kunn/internal/client"
 )
 
 func main() {
-	serverURL := os.Getenv("TUNN_SERVER")
+	serverURL := os.Getenv("KUNN_SERVER")
 	if serverURL == "" {
-		log.Fatal("TUNN_SERVER is required")
+		log.Fatal("KUNN_SERVER is required")
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -24,9 +24,9 @@ func main() {
 
 	token := client.LoadToken()
 	if token == "" {
-		authURL := os.Getenv("TUNN_AUTH_URL")
+		authURL := os.Getenv("KUNN_AUTH_URL")
 		if authURL == "" {
-			log.Fatal("no token found. Set TUNN_TOKEN, or set TUNN_AUTH_URL to login via browser")
+			log.Fatal("no token found. Set KUNN_TOKEN, or set KUNN_AUTH_URL to login via browser")
 		}
 		var err error
 		token, err = client.Login(ctx, authURL)

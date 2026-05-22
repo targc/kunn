@@ -7,18 +7,18 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/targc/local-tunn/internal/agent"
+	"github.com/targc/kunn/internal/agent"
 )
 
 func main() {
-	serverURL := os.Getenv("TUNN_SERVER")
+	serverURL := os.Getenv("KUNN_SERVER")
 	if serverURL == "" {
-		log.Fatal("TUNN_SERVER is required")
+		log.Fatal("KUNN_SERVER is required")
 	}
 
-	token := os.Getenv("TUNN_AGENT_TOKEN")
+	token := os.Getenv("KUNN_AGENT_TOKEN")
 	if token == "" {
-		log.Fatal("TUNN_AGENT_TOKEN is required")
+		log.Fatal("KUNN_AGENT_TOKEN is required")
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

@@ -3,9 +3,9 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /tunn-client ./cmd/client
+RUN CGO_ENABLED=0 go build -o /kunn-client ./cmd/client
 
 FROM alpine:3.20
 RUN apk add --no-cache ca-certificates
-COPY --from=build /tunn-client /usr/local/bin/tunn-client
-ENTRYPOINT ["tunn-client"]
+COPY --from=build /kunn-client /usr/local/bin/kunn-client
+ENTRYPOINT ["kunn-client"]

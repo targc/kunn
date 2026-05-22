@@ -14,7 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/yamux"
-	"github.com/targc/local-tunn/internal/wsconn"
+	"github.com/targc/kunn/internal/wsconn"
 )
 
 type Forward struct {

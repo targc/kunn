@@ -1,11 +1,11 @@
 services:
-  tunn-client:
+  kunn-client:
     build:
       context: .
       dockerfile: Dockerfile.client
     environment:
-      TUNN_SERVER: "ws://tunn-server.example.com/ws/client"
-      TUNN_TOKEN: "tok_alice_abc123"
+      KUNN_SERVER: "ws://kunn-server.example.com/ws/client"
+      KUNN_TOKEN: "tok_alice_abc123"
     network_mode: host
     stdin_open: true
     tty: true

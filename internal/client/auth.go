@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 )
 
-const tokenFile = ".tunn/token"
+const tokenFile = ".kunn/token"
 
-// LoadToken checks TUNN_TOKEN env var, then ~/.tunn/token file.
+// LoadToken checks KUNN_TOKEN env var, then ~/.kunn/token file.
 func LoadToken() string {
-	if t := os.Getenv("TUNN_TOKEN"); t != "" {
+	if t := os.Getenv("KUNN_TOKEN"); t != "" {
 		return t
 	}
 	home, err := os.UserHomeDir()
@@ -27,13 +27,13 @@ func LoadToken() string {
 	return string(data)
 }
 
-// SaveToken writes token to ~/.tunn/token.
+// SaveToken writes token to ~/.kunn/token.
 func SaveToken(token string) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("failed to get home dir: %w", err)
 	}
-	dir := filepath.Join(home, ".tunn")
+	dir := filepath.Join(home, ".kunn")
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("failed to create config dir: %w", err)
 	}
