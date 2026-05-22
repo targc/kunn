@@ -75,11 +75,15 @@ Environment:
 		log.Fatal("no projects available for this token")
 	}
 
+	var selectedProject client.ProjectInfo
+	var selectedService client.ServiceInfo
+
 	projOptions := make([]huh.Option[int], len(projects))
 	for i, p := range projects {
 		projOptions[i] = huh.NewOption(fmt.Sprintf("%s (%s)", p.Name, p.ID), i)
 	}
 
+selectProject:
 	var projIdx int
 	err = huh.NewSelect[int]().
 		Title("Select project").
@@ -89,7 +93,7 @@ Environment:
 	if err != nil {
 		log.Fatal(err)
 	}
-	selectedProject := projects[projIdx]
+	selectedProject = projects[projIdx]
 
 	// Select service
 	services, err := client.FetchServices(cfg.Server, token, selectedProject.ID)
@@ -107,14 +111,17 @@ Environment:
 
 	var svcIdx int
 	err = huh.NewSelect[int]().
-		Title("Select service").
+		Title("Select service (esc to go back)").
 		Options(svcOptions...).
 		Value(&svcIdx).
 		Run()
+	if errors.Is(err, huh.ErrUserAborted) {
+		goto selectProject
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
-	selectedService := services[svcIdx]
+	selectedService = services[svcIdx]
 
 	port := findAvailablePort(6060)
 	fmt.Printf("Tunneling %s → %s on localhost:%d\n", selectedProject.Name, selectedService.Name, port)
