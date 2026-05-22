@@ -18,11 +18,8 @@ import (
 
 const tokenFile = ".kunn/token"
 
-// LoadToken checks KUNN_TOKEN env var, then ~/.kunn/token file.
+// LoadToken returns the saved token from ~/.kunn/token, or empty string.
 func LoadToken() string {
-	if t := os.Getenv("KUNN_TOKEN"); t != "" {
-		return t
-	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return ""

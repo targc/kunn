@@ -11,8 +11,15 @@ import (
 	"syscall"
 
 	"github.com/charmbracelet/huh"
+	"github.com/sethvargo/go-envconfig"
 	"github.com/targc/kunn/internal/client"
 )
+
+type Config struct {
+	Server  string `env:"KUNN_SERVER"`
+	Token   string `env:"KUNN_TOKEN"`
+	AuthURL string `env:"KUNN_AUTH_URL"`
+}
 
 func main() {
 	if len(os.Args) > 1 {
@@ -38,49 +45,32 @@ Environment:
 		}
 	}
 
-	serverURL := os.Getenv("KUNN_SERVER")
-	if serverURL == "" {
-		log.Fatal("KUNN_SERVER is required")
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	token := client.LoadToken()
+	var cfg Config
+	if err := envconfig.Process(ctx, &cfg); err != nil {
+		log.Fatal(err)
+	}
+	if cfg.Server == "" {
+		log.Fatal("KUNN_SERVER is required")
+	}
+
+	token := cfg.Token
 	if token == "" {
-		authURL := os.Getenv("KUNN_AUTH_URL")
-		if authURL == "" {
-			log.Fatal("no token found. Set KUNN_TOKEN, or set KUNN_AUTH_URL to login via browser")
-		}
-		var err error
-		token, err = client.Login(ctx, authURL)
-		if err != nil {
-			log.Fatalf("login failed: %v", err)
-		}
-		if err := client.SaveToken(token); err != nil {
-			log.Printf("warning: failed to save token: %v", err)
-		}
-		fmt.Println("Login successful!")
+		token = client.LoadToken()
+	}
+	if token == "" {
+		token = login(ctx, cfg.AuthURL)
 	}
 
 	// Select project
-	projects, err := client.FetchProjects(serverURL, token)
+	projects, err := client.FetchProjects(cfg.Server, token)
 	if errors.Is(err, client.ErrUnauthorized) {
 		client.WipeToken()
 		fmt.Println("Token expired or invalid, re-authenticating...")
-		authURL := os.Getenv("KUNN_AUTH_URL")
-		if authURL == "" {
-			log.Fatal("token expired. Set KUNN_AUTH_URL to re-login via browser")
-		}
-		token, err = client.Login(ctx, authURL)
-		if err != nil {
-			log.Fatalf("login failed: %v", err)
-		}
-		if err := client.SaveToken(token); err != nil {
-			log.Printf("warning: failed to save token: %v", err)
-		}
-		fmt.Println("Login successful!")
-		projects, err = client.FetchProjects(serverURL, token)
+		token = login(ctx, cfg.AuthURL)
+		projects, err = client.FetchProjects(cfg.Server, token)
 	}
 	if err != nil {
 		log.Fatalf("failed to fetch projects: %v", err)
@@ -106,7 +96,7 @@ Environment:
 	selectedProject := projects[projIdx]
 
 	// Select service
-	services, err := client.FetchServices(serverURL, token, selectedProject.ID)
+	services, err := client.FetchServices(cfg.Server, token, selectedProject.ID)
 	if err != nil {
 		log.Fatalf("failed to fetch services: %v", err)
 	}
@@ -139,11 +129,26 @@ Environment:
 		ServiceID: selectedService.ID,
 	}}
 
-	c := client.New(serverURL, token, forwards)
+	c := client.New(cfg.Server, token, forwards)
 	if err := c.Run(ctx); err != nil && ctx.Err() == nil {
 		log.Fatal(err)
 	}
 	fmt.Println("\nDisconnected.")
+}
+
+func login(ctx context.Context, authURL string) string {
+	if authURL == "" {
+		log.Fatal("no token found. Set KUNN_TOKEN, or set KUNN_AUTH_URL to login via browser")
+	}
+	token, err := client.Login(ctx, authURL)
+	if err != nil {
+		log.Fatalf("login failed: %v", err)
+	}
+	if err := client.SaveToken(token); err != nil {
+		log.Printf("warning: failed to save token: %v", err)
+	}
+	fmt.Println("Login successful!")
+	return token
 }
 
 func findAvailablePort(start int) int {

@@ -3,28 +3,28 @@ package main
 import (
 	"context"
 	"log"
-	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/sethvargo/go-envconfig"
 	"github.com/targc/kunn/internal/agent"
 )
 
+type Config struct {
+	Server     string `env:"KUNN_SERVER,required"`
+	AgentToken string `env:"KUNN_AGENT_TOKEN,required"`
+}
+
 func main() {
-	serverURL := os.Getenv("KUNN_SERVER")
-	if serverURL == "" {
-		log.Fatal("KUNN_SERVER is required")
-	}
-
-	token := os.Getenv("KUNN_AGENT_TOKEN")
-	if token == "" {
-		log.Fatal("KUNN_AGENT_TOKEN is required")
-	}
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	a := agent.New(serverURL, token)
+	var cfg Config
+	if err := envconfig.Process(ctx, &cfg); err != nil {
+		log.Fatal(err)
+	}
+
+	a := agent.New(cfg.Server, cfg.AgentToken)
 	if err := a.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
