@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,8 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/targc/kunn/internal/wsconn"
 )
+
+var ErrUnauthorized = errors.New("unauthorized")
 
 type Forward struct {
 	LocalPort int
@@ -71,7 +74,7 @@ func FetchProjects(serverURL, token string) ([]ProjectInfo, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("invalid token")
+		return nil, ErrUnauthorized
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
@@ -101,7 +104,7 @@ func FetchServices(serverURL, token, projectID string) ([]ServiceInfo, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("invalid token")
+		return nil, ErrUnauthorized
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -33,11 +34,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("login failed: %v", err)
 		}
-		// Validate token before saving
-		fmt.Printf("Token received: %s\n", token)
-		if _, err := client.FetchProjects(serverURL, token); err != nil {
-			log.Fatalf("login failed: %v", err)
-		}
 		if err := client.SaveToken(token); err != nil {
 			log.Printf("warning: failed to save token: %v", err)
 		}
@@ -46,6 +42,23 @@ func main() {
 
 	// Select project
 	projects, err := client.FetchProjects(serverURL, token)
+	if errors.Is(err, client.ErrUnauthorized) {
+		client.WipeToken()
+		fmt.Println("Token expired or invalid, re-authenticating...")
+		authURL := os.Getenv("KUNN_AUTH_URL")
+		if authURL == "" {
+			log.Fatal("token expired. Set KUNN_AUTH_URL to re-login via browser")
+		}
+		token, err = client.Login(ctx, authURL)
+		if err != nil {
+			log.Fatalf("login failed: %v", err)
+		}
+		if err := client.SaveToken(token); err != nil {
+			log.Printf("warning: failed to save token: %v", err)
+		}
+		fmt.Println("Login successful!")
+		projects, err = client.FetchProjects(serverURL, token)
+	}
 	if err != nil {
 		log.Fatalf("failed to fetch projects: %v", err)
 	}

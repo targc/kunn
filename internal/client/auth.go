@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -30,6 +32,15 @@ func LoadToken() string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+// WipeToken removes ~/.kunn/token.
+func WipeToken() {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	os.Remove(filepath.Join(home, tokenFile))
 }
 
 // SaveToken writes token to ~/.kunn/token.
@@ -94,7 +105,10 @@ func Login(ctx context.Context, authURL string) (string, error) {
 	loginURL := fmt.Sprintf("%s?state=%s&callback=%s",
 		authURL, url.QueryEscape(state), url.QueryEscape(callback))
 
-	fmt.Printf("\nOpen this URL to login:\n  %s\n\nWaiting for login...\n", loginURL)
+	if err := openBrowser(loginURL); err != nil {
+		fmt.Printf("\nOpen this URL to login:\n  %s\n", loginURL)
+	}
+	fmt.Println("\nWaiting for login...")
 
 	select {
 	case res := <-resultCh:
@@ -104,6 +118,19 @@ func Login(ctx context.Context, authURL string) (string, error) {
 		return res.token, nil
 	case <-ctx.Done():
 		return "", ctx.Err()
+	}
+}
+
+func openBrowser(url string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		return exec.Command("open", url).Start()
+	case "linux":
+		return exec.Command("xdg-open", url).Start()
+	case "windows":
+		return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+	default:
+		return fmt.Errorf("unsupported platform")
 	}
 }
 
