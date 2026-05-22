@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const tokenFile = ".kunn/token"
@@ -28,7 +29,7 @@ func LoadToken() string {
 	if err != nil {
 		return ""
 	}
-	return string(data)
+	return strings.TrimSpace(string(data))
 }
 
 // SaveToken writes token to ~/.kunn/token.
@@ -83,7 +84,7 @@ func Login(ctx context.Context, authURL string) (string, error) {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, `<!doctype html><html><head><meta charset="utf-8"><title>Logged in</title></head><body><h2>Logged in.</h2><p id="msg">Attempting to close this window…</p><script>(function(){try{window.open('','_self');window.close();}catch(e){}setTimeout(function(){var m=document.getElementById('msg');if(m){m.textContent='You can close this window.';}},500);})();</script></body></html>`)
-		resultCh <- result{token: code}
+		resultCh <- result{token: strings.TrimSpace(code)}
 	})
 
 	srv := &http.Server{Handler: mux}
