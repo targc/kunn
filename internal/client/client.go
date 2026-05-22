@@ -155,7 +155,11 @@ func (c *Client) connect(ctx context.Context) error {
 		}(fwd)
 	}
 
-	<-session.CloseChan()
+	select {
+	case <-session.CloseChan():
+	case <-ctx.Done():
+		session.Close()
+	}
 	cancel()
 	wg.Wait()
 	return fmt.Errorf("session closed")

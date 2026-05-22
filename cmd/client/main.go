@@ -87,9 +87,10 @@ func main() {
 	defer cancel()
 
 	c := client.New(serverURL, token, forwards)
-	if err := c.Run(ctx); err != nil {
+	if err := c.Run(ctx); err != nil && ctx.Err() == nil {
 		log.Fatal(err)
 	}
+	fmt.Println("\nDisconnected.")
 }
 
 func findAvailablePort(start int) int {
