@@ -16,9 +16,9 @@ import (
 )
 
 type Config struct {
-	Server  string `env:"KUNN_SERVER"`
+	Server  string `env:"KUNN_SERVER,default=wss://kunn-server-899570118063554590.rcf2.deploys.app/ws/client"`
 	Token   string `env:"KUNN_TOKEN"`
-	AuthURL string `env:"KUNN_AUTH_URL"`
+	AuthURL string `env:"KUNN_AUTH_URL,default=https://api.nortezh.com/user/auth"`
 }
 
 func main() {
@@ -37,9 +37,9 @@ Usage:
   kunn --help       Show this help
 
 Environment:
-  KUNN_SERVER       WebSocket server URL (required)
+  KUNN_SERVER       WebSocket server URL (has default)
   KUNN_TOKEN        Auth token (optional, overrides saved token)
-  KUNN_AUTH_URL     Login page URL for browser auth (optional)
+  KUNN_AUTH_URL     Login page URL for browser auth (has default)
 `)
 			return
 		}
@@ -52,10 +52,6 @@ Environment:
 	if err := envconfig.Process(ctx, &cfg); err != nil {
 		log.Fatal(err)
 	}
-	if cfg.Server == "" {
-		log.Fatal("KUNN_SERVER is required")
-	}
-
 	token := cfg.Token
 	if token == "" {
 		token = client.LoadToken()
