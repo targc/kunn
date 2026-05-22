@@ -84,24 +84,31 @@ func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
 // --- Agent WebSocket ---
 
 func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
+	slog.Info("agent ws request", "remote", r.RemoteAddr)
+
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	clusterID, ok := s.config.ValidAgentToken(token)
 	if !ok {
+		slog.Warn("agent auth failed", "remote", r.RemoteAddr)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
+	slog.Info("agent auth ok", "cluster", clusterID, "remote", r.RemoteAddr)
+
 	ws, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		slog.Error("agent ws upgrade failed", "err", err)
+		slog.Error("agent ws upgrade failed", "cluster", clusterID, "err", err)
 		return
 	}
 	defer ws.Close()
 
+	slog.Info("agent ws upgraded", "cluster", clusterID)
+
 	// Server is yamux.Client toward agent (server opens streams to agent)
 	session, err := yamux.Client(wsconn.New(ws), nil)
 	if err != nil {
-		slog.Error("agent yamux failed", "err", err)
+		slog.Error("agent yamux failed", "cluster", clusterID, "err", err)
 		return
 	}
 	defer session.Close()
@@ -109,6 +116,7 @@ func (s *Server) handleAgentWS(w http.ResponseWriter, r *http.Request) {
 	// Replace existing agent for this cluster
 	s.mu.Lock()
 	if old, exists := s.agents[clusterID]; exists {
+		slog.Info("replacing existing agent", "cluster", clusterID)
 		old.Close()
 	}
 	s.agents[clusterID] = session
@@ -137,8 +145,11 @@ func (s *Server) getAgent(clusterID string) *yamux.Session {
 // --- Client WebSocket ---
 
 func (s *Server) handleClientWS(w http.ResponseWriter, r *http.Request) {
+	slog.Info("client ws request", "remote", r.RemoteAddr)
+
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !s.config.ValidToken(token) {
+		slog.Warn("client auth failed", "remote", r.RemoteAddr)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -151,7 +162,7 @@ func (s *Server) handleClientWS(w http.ResponseWriter, r *http.Request) {
 	defer ws.Close()
 
 	name := s.config.ClientName(token)
-	slog.Info("client connected", "name", name)
+	slog.Info("client connected", "name", name, "remote", r.RemoteAddr)
 
 	// Server is yamux.Server for clients (clients open streams to server)
 	session, err := yamux.Server(wsconn.New(ws), nil)
