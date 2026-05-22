@@ -116,6 +116,12 @@ def agent_auth(authorization: str = Header()):
     if not cluster: raise HTTPException(401)
     return {\"cluster\": cluster}
 
+from fastapi.responses import RedirectResponse
+
+@app.get(\"/login\")
+def login(port: int = Query()):
+    return RedirectResponse(f\"http://localhost:{port}/callback?token=tok_dev\")
+
 import uvicorn
 uvicorn.run(app, host=\"0.0.0.0\", port=8000)
 "'
@@ -315,14 +321,27 @@ echo "  Server:   ws://localhost:$SERVER_PORT"
 echo "  Cluster1: k3d-$CLUSTER_1 (agent_tok_1)"
 echo "  Cluster2: k3d-$CLUSTER_2 (agent_tok_2)"
 echo ""
-echo "Run client (docker):"
-echo "  docker run -it --rm --network host --name tunn-client \\"
+echo "Run client with token (docker):"
+echo "  docker run -it --rm --network host \\"
 echo "    -e TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
 echo "    -e TUNN_TOKEN=tok_dev \\"
 echo "    $REGISTRY/tunn-client:latest"
 echo ""
-echo "Run client (go):"
-echo "  TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client TUNN_TOKEN=tok_dev go run ./cmd/client"
+echo "Run client with token (go):"
+echo "  TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
+echo "    TUNN_TOKEN=tok_dev \\"
+echo "    go run ./cmd/client"
+echo ""
+echo "Run client with login (docker):"
+echo "  docker run -it --rm --network host \\"
+echo "    -e TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
+echo "    -e TUNN_AUTH_URL=http://localhost:$WEBHOOK_PORT/login \\"
+echo "    $REGISTRY/tunn-client:latest"
+echo ""
+echo "Run client with login (go):"
+echo "  TUNN_SERVER=ws://localhost:$SERVER_PORT/ws/client \\"
+echo "    TUNN_AUTH_URL=http://localhost:$WEBHOOK_PORT/login \\"
+echo "    go run ./cmd/client"
 echo ""
 echo "Services available:"
 echo "  pg-1    → PostgreSQL on cluster-1"
