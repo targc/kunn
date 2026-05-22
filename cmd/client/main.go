@@ -15,10 +15,27 @@ import (
 )
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "logout" {
-		client.WipeToken()
-		fmt.Println("Logged out.")
-		return
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "logout":
+			client.WipeToken()
+			fmt.Println("Logged out.")
+			return
+		case "--help", "-h":
+			fmt.Print(`kunn - Kubernetes tunnel client
+
+Usage:
+  kunn              Start tunnel (interactive)
+  kunn logout       Remove saved token
+  kunn --help       Show this help
+
+Environment:
+  KUNN_SERVER       WebSocket server URL (required)
+  KUNN_TOKEN        Auth token (optional, overrides saved token)
+  KUNN_AUTH_URL     Login page URL for browser auth (optional)
+`)
+			return
+		}
 	}
 
 	serverURL := os.Getenv("KUNN_SERVER")
