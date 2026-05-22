@@ -10,8 +10,6 @@ localhost:6060 → [client container] → WebSocket → [server pod] → postgre
 
 ### Config Mode 1: YAML (default)
 
-Server maps service IDs to real k8s service addresses. Clients only need to know the ID.
-
 ```yaml
 # config.yaml
 addr: ":8080"
@@ -19,20 +17,32 @@ addr: ":8080"
 clients:
   - name: "alice"
     token: "tok_alice_abc123"
-    services:
-      - id: "postgres"
-        name: "PostgreSQL (app)"
-        address: "postgres.app.svc.cluster.local:5432"
-      - id: "redis"
-        name: "Redis (cache)"
-        address: "redis.cache.svc.cluster.local:6379"
+    projects:
+      - id: "app"
+        name: "Main App"
+        services:
+          - id: "postgres"
+            name: "PostgreSQL"
+            address: "postgres.app.svc.cluster.local:5432"
+          - id: "redis"
+            name: "Redis"
+            address: "redis.app.svc.cluster.local:6379"
+      - id: "monitoring"
+        name: "Monitoring"
+        services:
+          - id: "grafana"
+            name: "Grafana"
+            address: "grafana.monitoring.svc.cluster.local:3000"
 
   - name: "bob"
     token: "tok_bob_xyz789"
-    services:
-      - id: "postgres"
-        name: "PostgreSQL (app)"
-        address: "postgres.app.svc.cluster.local:5432"
+    projects:
+      - id: "app"
+        name: "Main App"
+        services:
+          - id: "postgres"
+            name: "PostgreSQL"
+            address: "postgres.app.svc.cluster.local:5432"
 ```
 
 ```bash
@@ -47,37 +57,41 @@ Delegate auth and service resolution to an external API.
 TUNN_WEBHOOK_URL=https://api.example.com go run ./cmd/server
 ```
 
-Your API must implement two endpoints:
+Your API must implement:
 
-**`GET /services`** — list services for a token
+**`GET /projects`** — list projects for a token
 
 ```
 Authorization: Bearer <client-token>
 ```
-
 ```json
 {
   "name": "alice",
-  "services": [
-    { "id": "postgres", "name": "PostgreSQL (app)" },
-    { "id": "redis", "name": "Redis (cache)" }
+  "projects": [
+    { "id": "app", "name": "Main App" },
+    { "id": "monitoring", "name": "Monitoring" }
   ]
 }
 ```
 
-**`GET /resolve?service=<id>`** — resolve service ID to address
-
-```
-Authorization: Bearer <client-token>
-```
+**`GET /services?project=<id>`** — list services in a project
 
 ```json
 {
-  "address": "postgres.app.svc.cluster.local:5432"
+  "services": [
+    { "id": "postgres", "name": "PostgreSQL" },
+    { "id": "redis", "name": "Redis" }
+  ]
 }
 ```
 
-Return `401` for invalid tokens, or non-200 for disallowed services.
+**`GET /resolve?project=<id>&service=<id>`** — resolve to address
+
+```json
+{ "address": "postgres.app.svc.cluster.local:5432" }
+```
+
+Return `401` for invalid tokens.
 
 ### Deploy
 
@@ -106,11 +120,15 @@ docker run -it --rm --network host \
 ```
 
 ```
-? Select service
-> PostgreSQL (app) (postgres)
-  Redis (cache) (redis)
+? Select project
+> Main App (app)
+  Monitoring (monitoring)
 
-Tunneling PostgreSQL (app) on localhost:6060
+? Select service
+> PostgreSQL (postgres)
+  Redis (redis)
+
+Tunneling Main App → PostgreSQL on localhost:6060
 INFO tunnel established server=ws://tunn-server.example.com/ws
 INFO listening local=0.0.0.0:6060 service=postgres
 ```
@@ -121,7 +139,7 @@ Then connect:
 psql -h localhost -p 6060 -U myuser mydb
 ```
 
-The client auto-assigns port 6060. If 6060 is taken, it tries 6061, 6062, etc.
+Port auto-assigns starting from 6060. If taken, tries 6061, 6062, etc.
 
 ## Environment Variables
 

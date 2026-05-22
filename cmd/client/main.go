@@ -24,36 +24,64 @@ func main() {
 		log.Fatal("TUNN_TOKEN is required")
 	}
 
-	services, err := client.FetchServices(serverURL, token)
+	// Select project
+	projects, err := client.FetchProjects(serverURL, token)
 	if err != nil {
-		log.Fatalf("failed to fetch services: %v", err)
+		log.Fatalf("failed to fetch projects: %v", err)
+	}
+	if len(projects) == 0 {
+		log.Fatal("no projects available for this token")
 	}
 
-	if len(services) == 0 {
-		log.Fatal("no services available for this token")
+	projOptions := make([]huh.Option[int], len(projects))
+	for i, p := range projects {
+		projOptions[i] = huh.NewOption(fmt.Sprintf("%s (%s)", p.Name, p.ID), i)
 	}
 
-	options := make([]huh.Option[int], len(services))
-	for i, s := range services {
-		options[i] = huh.NewOption(fmt.Sprintf("%s (%s)", s.Name, s.ID), i)
-	}
-
-	var selectedIdx int
+	var projIdx int
 	err = huh.NewSelect[int]().
-		Title("Select service").
-		Options(options...).
-		Value(&selectedIdx).
+		Title("Select project").
+		Options(projOptions...).
+		Value(&projIdx).
 		Run()
 	if err != nil {
 		log.Fatal(err)
 	}
+	selectedProject := projects[projIdx]
 
-	selected := services[selectedIdx]
+	// Select service
+	services, err := client.FetchServices(serverURL, token, selectedProject.ID)
+	if err != nil {
+		log.Fatalf("failed to fetch services: %v", err)
+	}
+	if len(services) == 0 {
+		log.Fatal("no services available in this project")
+	}
+
+	svcOptions := make([]huh.Option[int], len(services))
+	for i, s := range services {
+		svcOptions[i] = huh.NewOption(fmt.Sprintf("%s (%s)", s.Name, s.ID), i)
+	}
+
+	var svcIdx int
+	err = huh.NewSelect[int]().
+		Title("Select service").
+		Options(svcOptions...).
+		Value(&svcIdx).
+		Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	selectedService := services[svcIdx]
+
 	port := findAvailablePort(6060)
+	fmt.Printf("Tunneling %s → %s on localhost:%d\n", selectedProject.Name, selectedService.Name, port)
 
-	fmt.Printf("Tunneling %s on localhost:%d\n", selected.Name, port)
-
-	forwards := []client.Forward{{LocalPort: port, ServiceID: selected.ID}}
+	forwards := []client.Forward{{
+		LocalPort: port,
+		ProjectID: selectedProject.ID,
+		ServiceID: selectedService.ID,
+	}}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

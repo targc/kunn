@@ -3,17 +3,29 @@ addr: ":8080"
 clients:
   - name: "alice"
     token: "tok_alice_abc123"
-    services:
-      - id: "postgres"
-        name: "PostgreSQL (app)"
-        address: "postgres.app.svc.cluster.local:5432"
-      - id: "redis"
-        name: "Redis (cache)"
-        address: "redis.cache.svc.cluster.local:6379"
+    projects:
+      - id: "app"
+        name: "Main App"
+        services:
+          - id: "postgres"
+            name: "PostgreSQL"
+            address: "postgres.app.svc.cluster.local:5432"
+          - id: "redis"
+            name: "Redis"
+            address: "redis.app.svc.cluster.local:6379"
+      - id: "monitoring"
+        name: "Monitoring"
+        services:
+          - id: "grafana"
+            name: "Grafana"
+            address: "grafana.monitoring.svc.cluster.local:3000"
 
   - name: "bob"
     token: "tok_bob_xyz789"
-    services:
-      - id: "postgres"
-        name: "PostgreSQL (app)"
-        address: "postgres.app.svc.cluster.local:5432"
+    projects:
+      - id: "app"
+        name: "Main App"
+        services:
+          - id: "postgres"
+            name: "PostgreSQL"
+            address: "postgres.app.svc.cluster.local:5432"

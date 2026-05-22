@@ -11,8 +11,12 @@ type WebhookConfig struct {
 	WebhookURL string
 }
 
-type webhookServicesResponse struct {
+type webhookProjectsResponse struct {
 	Name     string        `json:"name"`
+	Projects []ProjectInfo `json:"projects"`
+}
+
+type webhookServicesResponse struct {
 	Services []ServiceInfo `json:"services"`
 }
 
@@ -21,24 +25,46 @@ type webhookResolveResponse struct {
 }
 
 func (c *WebhookConfig) ValidToken(token string) bool {
-	_, err := c.ClientServices(token)
+	_, err := c.ClientProjects(token)
 	return err == nil
 }
 
 func (c *WebhookConfig) ClientName(token string) string {
-	resp, err := c.callWebhook("/services", token)
+	resp, err := c.callWebhook("/projects", token)
 	if err != nil {
 		return ""
 	}
-	var result webhookServicesResponse
+	defer resp.Body.Close()
+	var result webhookProjectsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return ""
 	}
 	return result.Name
 }
 
-func (c *WebhookConfig) ClientServices(token string) ([]ServiceInfo, error) {
-	resp, err := c.callWebhook("/services", token)
+func (c *WebhookConfig) ClientProjects(token string) ([]ProjectInfo, error) {
+	resp, err := c.callWebhook("/projects", token)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("invalid token")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("webhook returned status %d", resp.StatusCode)
+	}
+
+	var result webhookProjectsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode webhook response: %w", err)
+	}
+	return result.Projects, nil
+}
+
+func (c *WebhookConfig) ClientServices(token, projectID string) ([]ServiceInfo, error) {
+	resp, err := c.callWebhook("/services?project="+projectID, token)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +84,8 @@ func (c *WebhookConfig) ClientServices(token string) ([]ServiceInfo, error) {
 	return result.Services, nil
 }
 
-func (c *WebhookConfig) ResolveService(token, serviceID string) (string, error) {
-	resp, err := c.callWebhook("/resolve?service="+serviceID, token)
+func (c *WebhookConfig) ResolveService(token, projectID, serviceID string) (string, error) {
+	resp, err := c.callWebhook("/resolve?project="+projectID+"&service="+serviceID, token)
 	if err != nil {
 		return "", err
 	}

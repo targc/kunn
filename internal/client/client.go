@@ -19,6 +19,7 @@ import (
 
 type Forward struct {
 	LocalPort int
+	ProjectID string
 	ServiceID string
 }
 
@@ -36,17 +37,56 @@ func New(serverURL, token string, forwards []Forward) *Client {
 	}
 }
 
+type ProjectInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type ServiceInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
-// FetchServices calls GET /services on the server to list available services.
-func FetchServices(serverURL, token string) ([]ServiceInfo, error) {
-	// Derive HTTP URL from WS URL
-	httpURL := strings.Replace(serverURL, "/ws", "/services", 1)
-	httpURL = strings.Replace(httpURL, "ws://", "http://", 1)
-	httpURL = strings.Replace(httpURL, "wss://", "https://", 1)
+func httpBaseURL(serverURL string) string {
+	u := strings.Replace(serverURL, "/ws", "", 1)
+	u = strings.Replace(u, "ws://", "http://", 1)
+	u = strings.Replace(u, "wss://", "https://", 1)
+	return u
+}
+
+// FetchProjects calls GET /projects on the server.
+func FetchProjects(serverURL, token string) ([]ProjectInfo, error) {
+	httpURL := httpBaseURL(serverURL) + "/projects"
+
+	req, err := http.NewRequest("GET", httpURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch projects: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("invalid token")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status: %d", resp.StatusCode)
+	}
+
+	var projects []ProjectInfo
+	if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+		return nil, fmt.Errorf("failed to decode projects: %w", err)
+	}
+	return projects, nil
+}
+
+// FetchServices calls GET /services?project=<id> on the server.
+func FetchServices(serverURL, token, projectID string) ([]ServiceInfo, error) {
+	httpURL := httpBaseURL(serverURL) + "/services?project=" + projectID
 
 	req, err := http.NewRequest("GET", httpURL, nil)
 	if err != nil {
@@ -160,8 +200,9 @@ func (c *Client) handleConn(conn net.Conn, session *yamux.Session, fwd Forward) 
 	}
 	defer stream.Close()
 
-	if _, err := fmt.Fprintf(stream, "%s\n", fwd.ServiceID); err != nil {
-		slog.Error("failed to send service name", "err", err)
+	// Send projectID/serviceID
+	if _, err := fmt.Fprintf(stream, "%s/%s\n", fwd.ProjectID, fwd.ServiceID); err != nil {
+		slog.Error("failed to send stream header", "err", err)
 		return
 	}
 

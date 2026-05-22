@@ -7,6 +7,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type ProjectInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type ServiceInfo struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -15,8 +20,9 @@ type ServiceInfo struct {
 type IConfig interface {
 	ValidToken(token string) bool
 	ClientName(token string) string
-	ClientServices(token string) ([]ServiceInfo, error)
-	ResolveService(token, serviceID string) (string, error)
+	ClientProjects(token string) ([]ProjectInfo, error)
+	ClientServices(token, projectID string) ([]ServiceInfo, error)
+	ResolveService(token, projectID, serviceID string) (string, error)
 }
 
 // --- YAML Config ---
@@ -24,6 +30,12 @@ type IConfig interface {
 type YAMLConfig struct {
 	Addr    string         `yaml:"addr"`
 	Clients []ClientConfig `yaml:"clients"`
+}
+
+type ProjectConfig struct {
+	ID       string          `yaml:"id"`
+	Name     string          `yaml:"name"`
+	Services []ServiceConfig `yaml:"services"`
 }
 
 type ServiceConfig struct {
@@ -35,7 +47,7 @@ type ServiceConfig struct {
 type ClientConfig struct {
 	Name     string          `yaml:"name"`
 	Token    string          `yaml:"token"`
-	Services []ServiceConfig `yaml:"services"`
+	Projects []ProjectConfig `yaml:"projects"`
 }
 
 func LoadYAMLConfig(path string) (*YAMLConfig, error) {
@@ -71,12 +83,12 @@ func (c *YAMLConfig) ClientName(token string) string {
 	return ""
 }
 
-func (c *YAMLConfig) ClientServices(token string) ([]ServiceInfo, error) {
+func (c *YAMLConfig) ClientProjects(token string) ([]ProjectInfo, error) {
 	for _, cl := range c.Clients {
 		if cl.Token == token {
-			infos := make([]ServiceInfo, len(cl.Services))
-			for i, s := range cl.Services {
-				infos[i] = ServiceInfo{ID: s.ID, Name: s.Name}
+			infos := make([]ProjectInfo, len(cl.Projects))
+			for i, p := range cl.Projects {
+				infos[i] = ProjectInfo{ID: p.ID, Name: p.Name}
 			}
 			return infos, nil
 		}
@@ -84,15 +96,38 @@ func (c *YAMLConfig) ClientServices(token string) ([]ServiceInfo, error) {
 	return nil, fmt.Errorf("invalid token")
 }
 
-func (c *YAMLConfig) ResolveService(token, serviceID string) (string, error) {
+func (c *YAMLConfig) ClientServices(token, projectID string) ([]ServiceInfo, error) {
 	for _, cl := range c.Clients {
 		if cl.Token == token {
-			for _, s := range cl.Services {
-				if s.ID == serviceID {
-					return s.Address, nil
+			for _, p := range cl.Projects {
+				if p.ID == projectID {
+					infos := make([]ServiceInfo, len(p.Services))
+					for i, s := range p.Services {
+						infos[i] = ServiceInfo{ID: s.ID, Name: s.Name}
+					}
+					return infos, nil
 				}
 			}
-			return "", fmt.Errorf("service not allowed: %s", serviceID)
+			return nil, fmt.Errorf("project not found: %s", projectID)
+		}
+	}
+	return nil, fmt.Errorf("invalid token")
+}
+
+func (c *YAMLConfig) ResolveService(token, projectID, serviceID string) (string, error) {
+	for _, cl := range c.Clients {
+		if cl.Token == token {
+			for _, p := range cl.Projects {
+				if p.ID == projectID {
+					for _, s := range p.Services {
+						if s.ID == serviceID {
+							return s.Address, nil
+						}
+					}
+					return "", fmt.Errorf("service not allowed: %s", serviceID)
+				}
+			}
+			return "", fmt.Errorf("project not found: %s", projectID)
 		}
 	}
 	return "", fmt.Errorf("invalid token")
