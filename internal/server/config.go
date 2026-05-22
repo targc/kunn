@@ -7,7 +7,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Config struct {
+type ServiceInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type IConfig interface {
+	ValidToken(token string) bool
+	ClientName(token string) string
+	ClientServices(token string) ([]ServiceInfo, error)
+	ResolveService(token, serviceID string) (string, error)
+}
+
+// --- YAML Config ---
+
+type YAMLConfig struct {
 	Addr    string         `yaml:"addr"`
 	Clients []ClientConfig `yaml:"clients"`
 }
@@ -24,12 +38,12 @@ type ClientConfig struct {
 	Services []ServiceConfig `yaml:"services"`
 }
 
-func LoadConfig(path string) (*Config, error) {
+func LoadYAMLConfig(path string) (*YAMLConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
-	var cfg Config
+	var cfg YAMLConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
@@ -39,24 +53,7 @@ func LoadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// ResolveService returns the real address for a service ID under a given token.
-// Returns empty string if token is invalid or service not allowed.
-func (c *Config) ResolveService(token, serviceID string) string {
-	for _, cl := range c.Clients {
-		if cl.Token == token {
-			for _, s := range cl.Services {
-				if s.ID == serviceID {
-					return s.Address
-				}
-			}
-			return ""
-		}
-	}
-	return ""
-}
-
-// ValidToken checks if a token exists in config.
-func (c *Config) ValidToken(token string) bool {
+func (c *YAMLConfig) ValidToken(token string) bool {
 	for _, cl := range c.Clients {
 		if cl.Token == token {
 			return true
@@ -65,8 +62,7 @@ func (c *Config) ValidToken(token string) bool {
 	return false
 }
 
-// ClientName returns the name for a given token.
-func (c *Config) ClientName(token string) string {
+func (c *YAMLConfig) ClientName(token string) string {
 	for _, cl := range c.Clients {
 		if cl.Token == token {
 			return cl.Name
@@ -75,21 +71,29 @@ func (c *Config) ClientName(token string) string {
 	return ""
 }
 
-type ServiceInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-// ClientServices returns the list of services available for a token.
-func (c *Config) ClientServices(token string) []ServiceInfo {
+func (c *YAMLConfig) ClientServices(token string) ([]ServiceInfo, error) {
 	for _, cl := range c.Clients {
 		if cl.Token == token {
 			infos := make([]ServiceInfo, len(cl.Services))
 			for i, s := range cl.Services {
 				infos[i] = ServiceInfo{ID: s.ID, Name: s.Name}
 			}
-			return infos
+			return infos, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("invalid token")
+}
+
+func (c *YAMLConfig) ResolveService(token, serviceID string) (string, error) {
+	for _, cl := range c.Clients {
+		if cl.Token == token {
+			for _, s := range cl.Services {
+				if s.ID == serviceID {
+					return s.Address, nil
+				}
+			}
+			return "", fmt.Errorf("service not allowed: %s", serviceID)
+		}
+	}
+	return "", fmt.Errorf("invalid token")
 }

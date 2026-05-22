@@ -15,12 +15,14 @@ import (
 )
 
 type Server struct {
-	config   *Config
+	addr     string
+	config   IConfig
 	upgrader websocket.Upgrader
 }
 
-func New(config *Config) *Server {
+func New(addr string, config IConfig) *Server {
 	return &Server{
+		addr:   addr,
 		config: config,
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -32,8 +34,8 @@ func (s *Server) ListenAndServe() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handleWS)
 	mux.HandleFunc("/services", s.handleServices)
-	slog.Info("server listening", "addr", s.config.Addr)
-	return http.ListenAndServe(s.config.Addr, mux)
+	slog.Info("server listening", "addr", s.addr)
+	return http.ListenAndServe(s.addr, mux)
 }
 
 func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
@@ -42,7 +44,11 @@ func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	services := s.config.ClientServices(token)
+	services, err := s.config.ClientServices(token)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(services)
 }
@@ -87,7 +93,6 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleStream(stream net.Conn, token, name string) {
 	defer stream.Close()
 
-	// Read service name (first line)
 	reader := bufio.NewReader(stream)
 	service, err := reader.ReadString('\n')
 	if err != nil {
@@ -96,13 +101,12 @@ func (s *Server) handleStream(stream net.Conn, token, name string) {
 	}
 	service = strings.TrimSpace(service)
 
-	address := s.config.ResolveService(token, service)
-	if address == "" {
-		slog.Warn("service not allowed", "name", name, "service", service)
+	address, err := s.config.ResolveService(token, service)
+	if err != nil {
+		slog.Warn("service not allowed", "name", name, "service", service, "err", err)
 		return
 	}
 
-	// Dial the k8s service
 	backend, err := net.Dial("tcp", address)
 	if err != nil {
 		slog.Error("failed to dial service", "name", name, "service", service, "address", address, "err", err)
@@ -112,7 +116,6 @@ func (s *Server) handleStream(stream net.Conn, token, name string) {
 
 	slog.Info("stream opened", "name", name, "service", service, "address", address)
 
-	// Bidirectional proxy
 	done := make(chan struct{})
 	go func() {
 		io.Copy(backend, reader)

@@ -8,7 +8,7 @@ localhost:6060 → [client container] → WebSocket → [server pod] → postgre
 
 ## Server Setup (K8s)
 
-### 1. Create config
+### Config Mode 1: YAML (default)
 
 Server maps service IDs to real k8s service addresses. Clients only need to know the ID.
 
@@ -35,19 +35,57 @@ clients:
         address: "postgres.app.svc.cluster.local:5432"
 ```
 
-### 2. Deploy
+```bash
+TUNN_CONFIG=config.yaml go run ./cmd/server
+```
+
+### Config Mode 2: Webhook
+
+Delegate auth and service resolution to an external API.
+
+```bash
+TUNN_WEBHOOK_URL=https://api.example.com go run ./cmd/server
+```
+
+Your API must implement two endpoints:
+
+**`GET /services`** — list services for a token
+
+```
+Authorization: Bearer <client-token>
+```
+
+```json
+{
+  "name": "alice",
+  "services": [
+    { "id": "postgres", "name": "PostgreSQL (app)" },
+    { "id": "redis", "name": "Redis (cache)" }
+  ]
+}
+```
+
+**`GET /resolve?service=<id>`** — resolve service ID to address
+
+```
+Authorization: Bearer <client-token>
+```
+
+```json
+{
+  "address": "postgres.app.svc.cluster.local:5432"
+}
+```
+
+Return `401` for invalid tokens, or non-200 for disallowed services.
+
+### Deploy
 
 ```bash
 docker build -f Dockerfile.server -t tunn-server .
 
 kubectl create configmap tunn-server-config --from-file=config.yaml
 kubectl apply -f deploy/server.yaml
-```
-
-### Run locally (for testing)
-
-```bash
-TUNN_CONFIG=config.example.yaml go run ./cmd/server
 ```
 
 ## Client Usage
@@ -96,7 +134,8 @@ The client auto-assigns port 6060. If 6060 is taken, it tries 6061, 6062, etc.
 
 ### Server
 
-| Var | Required | Default |
-|-----|----------|---------|
-| `TUNN_CONFIG` | no | `/etc/tunn/config.yaml` |
-| `TUNN_ADDR` | no | from config file |
+| Var | Required | Description |
+|-----|----------|-------------|
+| `TUNN_CONFIG` | no | Path to YAML config (default: `/etc/tunn/config.yaml`) |
+| `TUNN_WEBHOOK_URL` | no | Webhook API base URL (overrides YAML mode) |
+| `TUNN_ADDR` | no | Listen address (default: `:8080` or from YAML) |
