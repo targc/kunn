@@ -19,9 +19,24 @@ func main() {
 		log.Fatal("TUNN_SERVER is required")
 	}
 
-	token := os.Getenv("TUNN_TOKEN")
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	token := client.LoadToken()
 	if token == "" {
-		log.Fatal("TUNN_TOKEN is required")
+		authURL := os.Getenv("TUNN_AUTH_URL")
+		if authURL == "" {
+			log.Fatal("no token found. Set TUNN_TOKEN, or set TUNN_AUTH_URL to login via browser")
+		}
+		var err error
+		token, err = client.Login(ctx, authURL)
+		if err != nil {
+			log.Fatalf("login failed: %v", err)
+		}
+		if err := client.SaveToken(token); err != nil {
+			log.Printf("warning: failed to save token: %v", err)
+		}
+		fmt.Println("Login successful!")
 	}
 
 	// Select project
@@ -82,9 +97,6 @@ func main() {
 		ProjectID: selectedProject.ID,
 		ServiceID: selectedService.ID,
 	}}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 
 	c := client.New(serverURL, token, forwards)
 	if err := c.Run(ctx); err != nil && ctx.Err() == nil {
