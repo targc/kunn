@@ -34,8 +34,9 @@ func main() {
 			log.Fatalf("login failed: %v", err)
 		}
 		// Validate token before saving
+		fmt.Printf("Token received: %s\n", token)
 		if _, err := client.FetchProjects(serverURL, token); err != nil {
-			log.Fatalf("login failed: invalid token received")
+			log.Fatalf("login failed: %v", err)
 		}
 		if err := client.SaveToken(token); err != nil {
 			log.Printf("warning: failed to save token: %v", err)

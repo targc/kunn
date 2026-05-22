@@ -117,10 +117,12 @@ def agent_auth(authorization: str = Header()):
     return {\"cluster\": cluster}
 
 from fastapi.responses import RedirectResponse
+from urllib.parse import unquote
 
 @app.get(\"/login\")
-def login(port: int = Query()):
-    return RedirectResponse(f\"http://localhost:{port}/callback?token=tok_dev\")
+def login(state: str = Query(), callback: str = Query()):
+    cb = unquote(callback)
+    return RedirectResponse(f\"{cb}?state={state}&code=tok_dev\")
 
 import uvicorn
 uvicorn.run(app, host=\"0.0.0.0\", port=8000)
