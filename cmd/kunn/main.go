@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/huh"
 	"github.com/sethvargo/go-envconfig"
 	"github.com/targc/kunn/internal/client"
@@ -22,6 +23,8 @@ type Config struct {
 }
 
 func main() {
+	fmt.Print("\033[2J\033[H")
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "logout":
@@ -109,13 +112,20 @@ selectProject:
 		svcOptions[i] = huh.NewOption(fmt.Sprintf("%s (%s)", s.Name, s.ID), i)
 	}
 
+	escKeyMap := huh.NewDefaultKeyMap()
+	escKeyMap.Quit = key.NewBinding(key.WithKeys("esc", "ctrl+c"))
+
 	var svcIdx int
-	err = huh.NewSelect[int]().
+	svcField := huh.NewSelect[int]().
 		Title("Select service (esc to go back)").
 		Options(svcOptions...).
-		Value(&svcIdx).
+		Value(&svcIdx)
+
+	err = huh.NewForm(huh.NewGroup(svcField)).
+		WithKeyMap(escKeyMap).
 		Run()
 	if errors.Is(err, huh.ErrUserAborted) {
+		fmt.Print("\033[2J\033[H")
 		goto selectProject
 	}
 	if err != nil {
