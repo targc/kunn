@@ -14,6 +14,7 @@ type Config struct {
 
 type ServiceConfig struct {
 	ID      string `yaml:"id"`
+	Name    string `yaml:"name"`
 	Address string `yaml:"address"`
 }
 
@@ -72,4 +73,23 @@ func (c *Config) ClientName(token string) string {
 		}
 	}
 	return ""
+}
+
+type ServiceInfo struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ClientServices returns the list of services available for a token.
+func (c *Config) ClientServices(token string) []ServiceInfo {
+	for _, cl := range c.Clients {
+		if cl.Token == token {
+			infos := make([]ServiceInfo, len(cl.Services))
+			for i, s := range cl.Services {
+				infos[i] = ServiceInfo{ID: s.ID, Name: s.Name}
+			}
+			return infos
+		}
+	}
+	return nil
 }

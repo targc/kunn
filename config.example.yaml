@@ -5,12 +5,15 @@ clients:
     token: "tok_alice_abc123"
     services:
       - id: "postgres"
+        name: "PostgreSQL (app)"
         address: "postgres.app.svc.cluster.local:5432"
       - id: "redis"
+        name: "Redis (cache)"
         address: "redis.cache.svc.cluster.local:6379"
 
   - name: "bob"
     token: "tok_bob_xyz789"
     services:
       - id: "postgres"
+        name: "PostgreSQL (app)"
         address: "postgres.app.svc.cluster.local:5432"

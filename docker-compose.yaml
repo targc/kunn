@@ -4,10 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile.client
     environment:
-      TUNN_SERVER: "ws://host.docker.internal:8080/ws"
+      TUNN_SERVER: "ws://tunn-server.example.com/ws"
       TUNN_TOKEN: "tok_alice_abc123"
-      TUNN_FORWARDS: "5432:postgres,6379:redis"
-    ports:
-      - "5432:5432"
-      - "6379:6379"
+    network_mode: host
+    stdin_open: true
+    tty: true
     restart: unless-stopped

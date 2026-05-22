@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
@@ -30,8 +31,20 @@ func New(config *Config) *Server {
 func (s *Server) ListenAndServe() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", s.handleWS)
+	mux.HandleFunc("/services", s.handleServices)
 	slog.Info("server listening", "addr", s.config.Addr)
 	return http.ListenAndServe(s.config.Addr, mux)
+}
+
+func (s *Server) handleServices(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !s.config.ValidToken(token) {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	services := s.config.ClientServices(token)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(services)
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
