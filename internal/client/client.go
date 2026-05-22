@@ -48,7 +48,7 @@ type ServiceInfo struct {
 }
 
 func httpBaseURL(serverURL string) string {
-	u := strings.Replace(serverURL, "/ws", "", 1)
+	u := strings.Replace(serverURL, "/ws/client", "", 1)
 	u = strings.Replace(u, "ws://", "http://", 1)
 	u = strings.Replace(u, "wss://", "https://", 1)
 	return u

@@ -1,5 +1,11 @@
 addr: ":8080"
 
+agents:
+  - cluster: "cluster-a"
+    token: "agent_tok_cluster_a"
+  - cluster: "cluster-b"
+    token: "agent_tok_cluster_b"
+
 clients:
   - name: "alice"
     token: "tok_alice_abc123"
@@ -9,15 +15,18 @@ clients:
         services:
           - id: "postgres"
             name: "PostgreSQL"
+            cluster: "cluster-a"
             address: "postgres.app.svc.cluster.local:5432"
           - id: "redis"
             name: "Redis"
+            cluster: "cluster-a"
             address: "redis.app.svc.cluster.local:6379"
       - id: "monitoring"
         name: "Monitoring"
         services:
           - id: "grafana"
             name: "Grafana"
+            cluster: "cluster-b"
             address: "grafana.monitoring.svc.cluster.local:3000"
 
   - name: "bob"
@@ -28,4 +37,5 @@ clients:
         services:
           - id: "postgres"
             name: "PostgreSQL"
+            cluster: "cluster-a"
             address: "postgres.app.svc.cluster.local:5432"

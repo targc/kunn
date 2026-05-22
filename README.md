@@ -1,18 +1,41 @@
 # local-tunn
 
-Tunnel into private Kubernetes services from your local machine via a Docker container.
+Tunnel into private Kubernetes services from your local machine. Supports multiple k8s clusters through agents.
 
 ```
-localhost:6060 → [client container] → WebSocket → [server pod] → postgres.app.svc:5432
+localhost:6060 → [client] → WebSocket → [server] → WebSocket → [agent in k8s] → postgres.svc:5432
 ```
 
-## Server Setup (K8s)
+## Architecture
 
-### Config Mode 1: YAML (default)
+```
+┌────────────┐        ┌────────────┐        ┌─────────────────────┐
+│   Client   │── WS ─►│   Server   │◄─ WS ──│  Agent (cluster-a)  │
+│  (local)   │        │  (public)  │        │  ├─► postgres.svc    │
+└────────────┘        │            │        │  └─► redis.svc       │
+                      │            │        └─────────────────────┘
+                      │            │        ┌─────────────────────┐
+                      │            │◄─ WS ──│  Agent (cluster-b)  │
+                      └────────────┘        │  └─► grafana.svc     │
+                                            └─────────────────────┘
+```
+
+- **Server** — public-facing, manages auth and routing
+- **Agent** — runs in each k8s cluster, connects outbound (no exposed ports)
+- **Client** — interactive container on local machine
+
+## Server Setup
+
+### Config (YAML)
 
 ```yaml
-# config.yaml
 addr: ":8080"
+
+agents:
+  - cluster: "cluster-a"
+    token: "agent_tok_cluster_a"
+  - cluster: "cluster-b"
+    token: "agent_tok_cluster_b"
 
 clients:
   - name: "alice"
@@ -23,98 +46,76 @@ clients:
         services:
           - id: "postgres"
             name: "PostgreSQL"
+            cluster: "cluster-a"
             address: "postgres.app.svc.cluster.local:5432"
           - id: "redis"
             name: "Redis"
+            cluster: "cluster-a"
             address: "redis.app.svc.cluster.local:6379"
       - id: "monitoring"
         name: "Monitoring"
         services:
           - id: "grafana"
             name: "Grafana"
+            cluster: "cluster-b"
             address: "grafana.monitoring.svc.cluster.local:3000"
-
-  - name: "bob"
-    token: "tok_bob_xyz789"
-    projects:
-      - id: "app"
-        name: "Main App"
-        services:
-          - id: "postgres"
-            name: "PostgreSQL"
-            address: "postgres.app.svc.cluster.local:5432"
 ```
 
+### Config (Webhook)
+
+Set `TUNN_WEBHOOK_URL` to delegate to an external API:
+
+| Endpoint | Response |
+|----------|----------|
+| `GET /projects` | `{"name":"alice","projects":[{"id":"app","name":"Main App"}]}` |
+| `GET /services?project=app` | `{"services":[{"id":"postgres","name":"PostgreSQL"}]}` |
+| `GET /resolve?project=app&service=postgres` | `{"cluster":"cluster-a","address":"postgres.svc:5432"}` |
+| `GET /agent-auth` | `{"cluster":"cluster-a"}` |
+
+All endpoints use `Authorization: Bearer <token>`. Return `401` for invalid tokens.
+
+### Run Server
+
 ```bash
+# YAML mode
 TUNN_CONFIG=config.yaml go run ./cmd/server
-```
 
-### Config Mode 2: Webhook
-
-Delegate auth and service resolution to an external API.
-
-```bash
+# Webhook mode
 TUNN_WEBHOOK_URL=https://api.example.com go run ./cmd/server
 ```
 
-Your API must implement:
+## Agent Setup (per k8s cluster)
 
-**`GET /projects`** — list projects for a token
-
-```
-Authorization: Bearer <client-token>
-```
-```json
-{
-  "name": "alice",
-  "projects": [
-    { "id": "app", "name": "Main App" },
-    { "id": "monitoring", "name": "Monitoring" }
-  ]
-}
-```
-
-**`GET /services?project=<id>`** — list services in a project
-
-```json
-{
-  "services": [
-    { "id": "postgres", "name": "PostgreSQL" },
-    { "id": "redis", "name": "Redis" }
-  ]
-}
-```
-
-**`GET /resolve?project=<id>&service=<id>`** — resolve to address
-
-```json
-{ "address": "postgres.app.svc.cluster.local:5432" }
-```
-
-Return `401` for invalid tokens.
-
-### Deploy
+Agent runs inside the cluster and connects outbound to the server.
 
 ```bash
-docker build -f Dockerfile.server -t tunn-server .
+docker build -f Dockerfile.agent -t tunn-agent .
+```
 
-kubectl create configmap tunn-server-config --from-file=config.yaml
-kubectl apply -f deploy/server.yaml
+```yaml
+# k8s deployment
+env:
+  - name: TUNN_SERVER
+    value: "ws://tunn-server.example.com/ws/agent"
+  - name: TUNN_AGENT_TOKEN
+    value: "agent_tok_cluster_a"
+```
+
+Or run locally for testing:
+
+```bash
+TUNN_SERVER=ws://localhost:8080/ws/agent \
+TUNN_AGENT_TOKEN=agent_tok_cluster_a \
+go run ./cmd/agent
 ```
 
 ## Client Usage
 
-### 1. Build
-
 ```bash
 docker build -f Dockerfile.client -t tunn-client .
-```
 
-### 2. Run
-
-```bash
 docker run -it --rm --network host \
-  -e TUNN_SERVER=ws://tunn-server.example.com/ws \
+  -e TUNN_SERVER=ws://tunn-server.example.com/ws/client \
   -e TUNN_TOKEN=tok_alice_abc123 \
   tunn-client
 ```
@@ -129,17 +130,15 @@ docker run -it --rm --network host \
   Redis (redis)
 
 Tunneling Main App → PostgreSQL on localhost:6060
-INFO tunnel established server=ws://tunn-server.example.com/ws
+INFO tunnel established
 INFO listening local=0.0.0.0:6060 service=postgres
 ```
-
-Then connect:
 
 ```bash
 psql -h localhost -p 6060 -U myuser mydb
 ```
 
-Port auto-assigns starting from 6060. If taken, tries 6061, 6062, etc.
+Port auto-assigns starting from 6060.
 
 ## Environment Variables
 
@@ -147,8 +146,15 @@ Port auto-assigns starting from 6060. If taken, tries 6061, 6062, etc.
 
 | Var | Required | Example |
 |-----|----------|---------|
-| `TUNN_SERVER` | yes | `ws://tunn-server:8080/ws` |
+| `TUNN_SERVER` | yes | `ws://server:8080/ws/client` |
 | `TUNN_TOKEN` | yes | `tok_alice_abc123` |
+
+### Agent
+
+| Var | Required | Example |
+|-----|----------|---------|
+| `TUNN_SERVER` | yes | `ws://server:8080/ws/agent` |
+| `TUNN_AGENT_TOKEN` | yes | `agent_tok_cluster_a` |
 
 ### Server
 

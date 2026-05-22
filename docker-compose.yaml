@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.client
     environment:
-      TUNN_SERVER: "ws://tunn-server.example.com/ws"
+      TUNN_SERVER: "ws://tunn-server.example.com/ws/client"
       TUNN_TOKEN: "tok_alice_abc123"
     network_mode: host
     stdin_open: true

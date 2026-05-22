@@ -21,7 +21,12 @@ type webhookServicesResponse struct {
 }
 
 type webhookResolveResponse struct {
+	Cluster string `json:"cluster"`
 	Address string `json:"address"`
+}
+
+type webhookAgentAuthResponse struct {
+	Cluster string `json:"cluster"`
 }
 
 func (c *WebhookConfig) ValidToken(token string) bool {
@@ -84,28 +89,46 @@ func (c *WebhookConfig) ClientServices(token, projectID string) ([]ServiceInfo, 
 	return result.Services, nil
 }
 
-func (c *WebhookConfig) ResolveService(token, projectID, serviceID string) (string, error) {
+func (c *WebhookConfig) ResolveService(token, projectID, serviceID string) (ServiceRoute, error) {
 	resp, err := c.callWebhook("/resolve?project="+projectID+"&service="+serviceID, token)
 	if err != nil {
-		return "", err
+		return ServiceRoute{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		return "", fmt.Errorf("invalid token")
+		return ServiceRoute{}, fmt.Errorf("invalid token")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("webhook returned status %d", resp.StatusCode)
+		return ServiceRoute{}, fmt.Errorf("webhook returned status %d", resp.StatusCode)
 	}
 
 	var result webhookResolveResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("failed to decode webhook response: %w", err)
+		return ServiceRoute{}, fmt.Errorf("failed to decode webhook response: %w", err)
 	}
 	if result.Address == "" {
-		return "", fmt.Errorf("service not allowed: %s", serviceID)
+		return ServiceRoute{}, fmt.Errorf("service not allowed: %s", serviceID)
 	}
-	return result.Address, nil
+	return ServiceRoute{Cluster: result.Cluster, Address: result.Address}, nil
+}
+
+func (c *WebhookConfig) ValidAgentToken(token string) (string, bool) {
+	resp, err := c.callWebhook("/agent-auth", token)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", false
+	}
+
+	var result webhookAgentAuthResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", false
+	}
+	return result.Cluster, result.Cluster != ""
 }
 
 func (c *WebhookConfig) callWebhook(path, token string) (*http.Response, error) {
