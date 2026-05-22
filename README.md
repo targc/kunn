@@ -88,43 +88,32 @@ KUNN_WEBHOOK_URL=https://api.example.com go run ./cmd/server
 
 Agent runs inside the cluster and connects outbound to the server.
 
-```bash
-docker build -f Dockerfile.agent -t kunn-agent .
-```
-
 ```yaml
 # k8s deployment
-env:
-  - name: KUNN_SERVER
-    value: "ws://kunn-server.example.com/ws/agent"
-  - name: KUNN_AGENT_TOKEN
-    value: "agent_tok_cluster_a"
-```
-
-Or run locally for testing:
-
-```bash
-KUNN_SERVER=ws://localhost:8080/ws/agent \
-KUNN_AGENT_TOKEN=agent_tok_cluster_a \
-go run ./cmd/agent
+containers:
+  - name: kunn-agent
+    image: ghcr.io/targc/kunn/agent:latest
+    env:
+      - name: KUNN_SERVER
+        value: "ws://kunn-server.example.com/ws/agent"
+      - name: KUNN_AGENT_TOKEN
+        value: "agent_tok_cluster_a"
 ```
 
 ## Client Usage
 
 ```bash
-docker build -f Dockerfile.client -t kunn-client .
-
 # With token
 docker run -it --rm --network host \
   -e KUNN_SERVER=ws://kunn-server.example.com/ws/client \
   -e KUNN_TOKEN=tok_alice_abc123 \
-  kunn-client
+  ghcr.io/targc/kunn/client:latest
 
 # With browser login
 docker run -it --rm --network host \
   -e KUNN_SERVER=ws://kunn-server.example.com/ws/client \
   -e KUNN_AUTH_URL=https://auth.example.com/login \
-  kunn-client
+  ghcr.io/targc/kunn/client:latest
 ```
 
 ```
@@ -154,7 +143,7 @@ Port auto-assigns starting from 6060.
 | Var | Required | Example |
 |-----|----------|---------|
 | `KUNN_SERVER` | yes | `ws://server:8080/ws/client` |
-| `KUNN_TOKEN` | no | `tok_alice_abc123` (or saved in `~/.tunn/token`) |
+| `KUNN_TOKEN` | no | `tok_alice_abc123` (or saved in `~/.kunn/token`) |
 | `KUNN_AUTH_URL` | no | `https://auth.example.com/login` (for browser login) |
 
 ### Agent
