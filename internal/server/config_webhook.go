@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 )
 
@@ -31,7 +32,17 @@ type webhookAgentAuthResponse struct {
 
 func (c *WebhookConfig) ValidToken(token string) bool {
 	_, err := c.ClientProjects(token)
-	return err == nil
+
+	if err != nil {
+		slog.Error(
+			"webhook config : failed to check valid token",
+			"error", err.Error(),
+		)
+
+		return false
+	}
+
+	return true
 }
 
 func (c *WebhookConfig) ClientName(token string) string {
