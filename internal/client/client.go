@@ -18,7 +18,7 @@ import (
 
 type Forward struct {
 	LocalPort int
-	Remote    string
+	ServiceID string
 }
 
 type Client struct {
@@ -92,7 +92,7 @@ func (c *Client) listen(ctx context.Context, session *yamux.Session, fwd Forward
 	}
 	defer ln.Close()
 
-	slog.Info("listening", "local", addr, "remote", fwd.Remote)
+	slog.Info("listening", "local", addr, "remote", fwd.ServiceID)
 
 	go func() {
 		<-ctx.Done()
@@ -117,13 +117,13 @@ func (c *Client) handleConn(conn net.Conn, session *yamux.Session, fwd Forward) 
 
 	stream, err := session.Open()
 	if err != nil {
-		slog.Error("failed to open stream", "remote", fwd.Remote, "err", err)
+		slog.Error("failed to open stream", "remote", fwd.ServiceID, "err", err)
 		return
 	}
 	defer stream.Close()
 
 	// Send service name
-	if _, err := fmt.Fprintf(stream, "%s\n", fwd.Remote); err != nil {
+	if _, err := fmt.Fprintf(stream, "%s\n", fwd.ServiceID); err != nil {
 		slog.Error("failed to send service name", "err", err)
 		return
 	}
@@ -158,17 +158,16 @@ func ParseForwards(s string) ([]Forward, error) {
 		if part == "" {
 			continue
 		}
-		// format: localPort:host:port
-		parts := strings.SplitN(part, ":", 3)
-		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid forward: %s (expected localPort:host:port)", part)
+		// format: localPort:serviceID
+		parts := strings.SplitN(part, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid forward: %s (expected localPort:serviceID)", part)
 		}
 		var localPort int
 		if _, err := fmt.Sscanf(parts[0], "%d", &localPort); err != nil {
 			return nil, fmt.Errorf("invalid local port: %s", parts[0])
 		}
-		remote := parts[1] + ":" + parts[2]
-		forwards = append(forwards, Forward{LocalPort: localPort, Remote: remote})
+		forwards = append(forwards, Forward{LocalPort: localPort, ServiceID: parts[1]})
 	}
 	return forwards, nil
 }

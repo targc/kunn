@@ -1,13 +1,16 @@
 addr: ":8080"
 
 clients:
-  - name: "dev-alice"
+  - name: "alice"
     token: "tok_alice_abc123"
     services:
-      - "postgres.app.svc.cluster.local:5432"
-      - "redis.cache.svc.cluster.local:6379"
+      - id: "postgres"
+        address: "postgres.app.svc.cluster.local:5432"
+      - id: "redis"
+        address: "redis.cache.svc.cluster.local:6379"
 
-  - name: "dev-bob"
+  - name: "bob"
     token: "tok_bob_xyz789"
     services:
-      - "postgres.app.svc.cluster.local:5432"
+      - id: "postgres"
+        address: "postgres.app.svc.cluster.local:5432"

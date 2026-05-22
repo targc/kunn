@@ -83,20 +83,21 @@ func (s *Server) handleStream(stream net.Conn, token, name string) {
 	}
 	service = strings.TrimSpace(service)
 
-	if !s.config.ServiceAllowed(token, service) {
+	address := s.config.ResolveService(token, service)
+	if address == "" {
 		slog.Warn("service not allowed", "name", name, "service", service)
 		return
 	}
 
 	// Dial the k8s service
-	backend, err := net.Dial("tcp", service)
+	backend, err := net.Dial("tcp", address)
 	if err != nil {
-		slog.Error("failed to dial service", "name", name, "service", service, "err", err)
+		slog.Error("failed to dial service", "name", name, "service", service, "address", address, "err", err)
 		return
 	}
 	defer backend.Close()
 
-	slog.Info("stream opened", "name", name, "service", service)
+	slog.Info("stream opened", "name", name, "service", service, "address", address)
 
 	// Bidirectional proxy
 	done := make(chan struct{})

@@ -12,10 +12,15 @@ type Config struct {
 	Clients []ClientConfig `yaml:"clients"`
 }
 
+type ServiceConfig struct {
+	ID      string `yaml:"id"`
+	Address string `yaml:"address"`
+}
+
 type ClientConfig struct {
-	Name     string   `yaml:"name"`
-	Token    string   `yaml:"token"`
-	Services []string `yaml:"services"`
+	Name     string          `yaml:"name"`
+	Token    string          `yaml:"token"`
+	Services []ServiceConfig `yaml:"services"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -33,19 +38,20 @@ func LoadConfig(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// ServiceAllowed checks if a token is valid and the service is allowed.
-func (c *Config) ServiceAllowed(token, service string) bool {
+// ResolveService returns the real address for a service ID under a given token.
+// Returns empty string if token is invalid or service not allowed.
+func (c *Config) ResolveService(token, serviceID string) string {
 	for _, cl := range c.Clients {
 		if cl.Token == token {
 			for _, s := range cl.Services {
-				if s == service {
-					return true
+				if s.ID == serviceID {
+					return s.Address
 				}
 			}
-			return false
+			return ""
 		}
 	}
-	return false
+	return ""
 }
 
 // ValidToken checks if a token exists in config.
