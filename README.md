@@ -3,7 +3,7 @@
 Tunnel into private Kubernetes services from your local machine via a Docker container.
 
 ```
-localhost:5432 → [client container] → WebSocket → [server pod] → postgres.app.svc:5432
+localhost:6060 → [client container] → WebSocket → [server pod] → postgres.app.svc:5432
 ```
 
 ## Server Setup (K8s)
@@ -21,14 +21,17 @@ clients:
     token: "tok_alice_abc123"
     services:
       - id: "postgres"
+        name: "PostgreSQL (app)"
         address: "postgres.app.svc.cluster.local:5432"
       - id: "redis"
+        name: "Redis (cache)"
         address: "redis.cache.svc.cluster.local:6379"
 
   - name: "bob"
     token: "tok_bob_xyz789"
     services:
       - id: "postgres"
+        name: "PostgreSQL (app)"
         address: "postgres.app.svc.cluster.local:5432"
 ```
 
@@ -39,6 +42,12 @@ docker build -f Dockerfile.server -t tunn-server .
 
 kubectl create configmap tunn-server-config --from-file=config.yaml
 kubectl apply -f deploy/server.yaml
+```
+
+### Run locally (for testing)
+
+```bash
+TUNN_CONFIG=config.example.yaml go run ./cmd/server
 ```
 
 ## Client Usage
@@ -59,22 +68,22 @@ docker run -it --rm --network host \
 ```
 
 ```
-Available services:
-  1) postgres
-  2) redis
+? Select service
+> PostgreSQL (app) (postgres)
+  Redis (cache) (redis)
 
-Select service: 1
-Local port for 'postgres': 5432
-
+Tunneling PostgreSQL (app) on localhost:6060
 INFO tunnel established server=ws://tunn-server.example.com/ws
-INFO listening local=0.0.0.0:5432 service=postgres
+INFO listening local=0.0.0.0:6060 service=postgres
 ```
 
-Then from your host:
+Then connect:
 
 ```bash
-psql -h localhost -p 5432 -U myuser mydb
+psql -h localhost -p 6060 -U myuser mydb
 ```
+
+The client auto-assigns port 6060. If 6060 is taken, it tries 6061, 6062, etc.
 
 ## Environment Variables
 

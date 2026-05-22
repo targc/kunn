@@ -1,16 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
-	"strconv"
-	"strings"
 	"syscall"
 
+	"github.com/charmbracelet/huh"
 	"github.com/targc/local-tunn/internal/client"
 )
 
@@ -34,31 +33,25 @@ func main() {
 		log.Fatal("no services available for this token")
 	}
 
-	fmt.Println("Available services:")
+	options := make([]huh.Option[int], len(services))
 	for i, s := range services {
-		fmt.Printf("  %d) %s (%s)\n", i+1, s.Name, s.ID)
+		options[i] = huh.NewOption(fmt.Sprintf("%s (%s)", s.Name, s.ID), i)
 	}
-	fmt.Println()
 
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Print("Select service: ")
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	idx, err := strconv.Atoi(input)
-	if err != nil || idx < 1 || idx > len(services) {
-		log.Fatalf("invalid selection: %s", input)
-	}
-	selected := services[idx-1]
-
-	fmt.Printf("Local port for '%s': ", selected.Name)
-	portStr, _ := reader.ReadString('\n')
-	portStr = strings.TrimSpace(portStr)
-	port, err := strconv.Atoi(portStr)
+	var selectedIdx int
+	err = huh.NewSelect[int]().
+		Title("Select service").
+		Options(options...).
+		Value(&selectedIdx).
+		Run()
 	if err != nil {
-		log.Fatalf("invalid port: %s", portStr)
+		log.Fatal(err)
 	}
+
+	selected := services[selectedIdx]
+	port := findAvailablePort(6060)
+
+	fmt.Printf("Tunneling %s on localhost:%d\n", selected.Name, port)
 
 	forwards := []client.Forward{{LocalPort: port, ServiceID: selected.ID}}
 
@@ -69,4 +62,16 @@ func main() {
 	if err := c.Run(ctx); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func findAvailablePort(start int) int {
+	for port := start; port < start+100; port++ {
+		ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+		if err == nil {
+			ln.Close()
+			return port
+		}
+	}
+	log.Fatal("no available port found")
+	return 0
 }
